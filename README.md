@@ -1,57 +1,58 @@
-# 日积 · 每日打卡
+# 日积 · 原生 Android 打卡应用
 
-一个中文、离线优先的 Android 打卡应用，使用 Flutter 编写。任务、目标和记录保存在设备本地，无需注册。
+Kotlin + Android 原生 Views 实现。当前版本 **2.0.0**，最低支持 Android 7.0（API 24），编译和目标 SDK 为 36。项目不包含 Dart、Flutter 引擎、WebView 或 Flutter 构建插件。
 
-## 已有功能
+## 功能
 
-- 新建、编辑、归档和删除任务，自定义名称、单位、每日数量、累计目标及颜色。
-- 一键完成当天目标，或手动填写完成数量。每个任务每天保存一条记录；编辑时填写的是当天总量，不是新增量。
-- 写文字日记，允许数量为 0 的纯文字记录。
-- 日期切换、历史补记、记录编辑和清除，不支持未来打卡。
-- 目标累计进度、当前连续达标天数、月历回顾。
-- 复制 JSON 备份和粘贴恢复；恢复前会确认替换当前数据。
+- 自定义任务名称、每日数量、单位、累计目标和颜色。
+- 每日一键打卡，手动编辑实际总量，支持小数和纯文字日记。
+- 日期切换、过去日期补记、月历、历史记录、连续达标天数。
+- 编辑、归档、恢复任务，以及确认后删除任务或清除当天记录。
+- 复制 JSON 备份和粘贴恢复；恢复前验证格式并确认替换。
+- 编辑任务、记录时保存草稿以应对屏幕旋转和 Activity 重建。
 
-## 使用方法
+## 打开与构建
 
-1. 安装 APK 后点击「新建任务」。例如名称「阅读」，每日目标 20，单位「页」，累计目标 600。
-2. 「打卡」会将当日数量设为每日目标；「写记录／编辑记录」可填写实际数量和文字。
-3. 在「目标」查看累计进度，在「记录」选择日期回看；「每日」和「记录」共用所选日期。
-4. 右上角菜单可复制备份。请把备份粘贴到可信的笔记或文件保存。卸载、清除应用数据会丢失本地记录。
-5. 归档保留历史并从每日列表隐藏。编辑单位不会自动换算历史数值；修改每日目标会改变历史达标判断。
+使用 Android Studio 直接打开仓库根目录。需要 JDK 17 或以上（开发验证使用 Android Studio 自带 JDK 21）、Android SDK 36。首次构建需要联网下载 Gradle 和 Maven 依赖，不需要 Flutter SDK 或 NDK。
 
-## 本地开发
+在根目录的 `local.properties` 中配置自己的 Android SDK 路径，或让 Android Studio 自动生成：
 
-本项目已在 Flutter 3.41.6 / Dart 3.11.4 上验证。需要 Flutter SDK、Android SDK 和 JDK（可使用 Android Studio 自带的 JDK）。项目固定使用 NDK 27.0.12077973。
-
-```sh
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-flutter build apk --debug
+```properties
+sdk.dir=/your/path/to/Android/sdk
 ```
 
-Android Studio 打开项目根目录即可。当前配置最低支持 Android 7.0（API 24），目标版本为 Android API 36。
+```sh
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug
+```
 
-主要代码：
+APK 输出位置：`app/build/outputs/apk/debug/app-debug.apk`。当前 APK 使用开发机的调试签名；正式发行需另行配置并保管签名密钥。
 
-- `lib/main.dart`：每日、目标、记录页面，以及任务和记录编辑器。
-- `lib/models.dart`：任务、每日记录、备份格式和连续打卡计算。
-- `test/widget_test.dart`：备份校验、连续打卡、创建和保存流程、窄屏布局测试。
+## 旧版数据兼容
 
-## 初版范围
+包名继续使用 `com.amiao.daily_check`。以相同签名覆盖安装时，首次运行会读取 Flutter 版的 `FlutterSharedPreferences` / `flutter.daily_check_v1`，校验后写入原生应用私有文件 `files/habits-v1.json`。旧版偏好文件保留不动；原生文件存在后以原生文件为准，避免旧数据覆盖新记录。迁移失败或本地文件损坏时显示读取错误，支持重试或恢复备份，不会静默清空数据。
 
-当前是个人使用的原型版本：每天重复任务，累计数量目标，纯文字记录。暂未实现账号、云同步、推送提醒、图片附件、周频次和截止日期。数据使用 SharedPreferences 保存，适合当前小规模个人记录；后续可迁移至 SQLite。
+备份继续沿用 version 1 JSON 格式。卸载应用或清除数据会删除本地记录，建议手动保管备份。数据用 `AtomicFile` 原子写入；保存失败时不更新界面中的任务状态。
 
-提供的 APK 为调试签名体验版，未上架应用商店。正式发布前需要配置自己的签名密钥并保管，后续升级应使用同一签名。
+## 源码结构
 
+- `app/src/main/kotlin/com/amiao/daily_check/MainActivity.kt`：原生每日、目标、记录页面、系统日期选择器和编辑对话框。
+- `app/src/main/kotlin/com/amiao/daily_check/Models.kt`：任务、每日记录、日期和 JSON 校验。
+- `app/src/main/kotlin/com/amiao/daily_check/HabitRepository.kt`：持久化和旧数据迁移。
+- `app/src/test/`：JUnit 模型、格式、小数、连续打卡和异常数据测试。
+- `app/src/androidTest/`：独立测试文件中的迁移、耐久保存、损坏数据保护，以及原生 Activity 启动测试。
 
-## 真机验证（2026-11-16 / v1.0.1）
+## 验证
 
-设备：PGKM10，Android 15，ADB USB 连接。
+2026-11-16，PGKM10 / Android 15 真机已覆盖安装原生版，验证旧记录迁移、记录编辑、小数数量、强制停止后重新打开、累计目标与历史月历。另在 Android 11 模拟器运行 instrumentation 测试：
 
-已实际操作验证：创建任务（每日 20 pages，累计 600 pages）、一键打卡、修改实际数量为 25、填写文字记录、强制停止后重新打开、目标累计 25 / 600、月历与历史记录显示、覆盖安装升级后保留记录。
+```sh
+./gradlew :app:assembleDebugAndroidTest
+adb -s <device> install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s <device> install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s <device> shell am instrument -w com.amiao.daily_check.test/com.amiao.daily_check.NativeSmokeInstrumentation
+```
 
-发现并修复：新建任务悬浮按钮会遮住部分记录文字。v1.0.1 将新建任务按钮放入独立底部区域，记录列表在其上方滚动。已在同一手机重新验证。
+Android 15/16 的系统栏和键盘区域通过 WindowInsets 处理，参考 [Android 官方系统栏适配文档](https://developer.android.com/develop/ui/views/layout/edge-to-edge)。
 
-静态分析无问题，4 项自动测试通过。上述结果只覆盖本次操作路径；通知、云同步等尚未实现的功能不在测试范围。手机保留一条名为 Device test reading 的测试任务，可从任务菜单删除。
+当前范围为离线个人打卡：每天重复任务、累计数量目标、文字记录。账号、云同步、提醒、图片、周频次和截止日期尚未实现。
