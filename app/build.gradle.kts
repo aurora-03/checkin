@@ -9,8 +9,8 @@ android {
         applicationId = "com.amiao.daily_check"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "2.1.0"
         testInstrumentationRunner = "com.amiao.daily_check.NativeSmokeInstrumentation"
     }
     compileOptions {
@@ -21,6 +21,8 @@ android {
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 dependencies {
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }

@@ -1,0 +1,5 @@
+<resources>
+    <style name="SheetTheme" parent="SheetBase">
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

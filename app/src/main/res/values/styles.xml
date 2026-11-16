@@ -1,11 +1,35 @@
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="AppTheme" parent="Theme.Material3.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#33755B</item>
+        <item name="colorPrimary">#2C705B</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#2C705B</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#202824</item>
+        <item name="colorOnSurfaceVariant">#6C776F</item>
+        <item name="colorOutline">#DDE3DD</item>
+        <item name="android:colorAccent">#2C705B</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#F6F7F2</item>
-        <item name="android:navigationBarColor">#F6F7F2</item>
-        <item name="android:windowBackground">#F6F7F2</item>
-        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:statusBarColor">#F7F8F5</item>
+        <item name="android:navigationBarColor">#F7F8F5</item>
+        <item name="android:windowBackground">#F7F8F5</item>
+        <item name="bottomSheetDialogTheme">@style/SheetTheme</item>
+    </style>
+    <style name="SheetTheme" parent="SheetBase" />
+    <style name="SheetBase" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/SheetSurface</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+    </style>
+    <style name="SheetSurface" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="shapeAppearanceOverlay">@style/SheetCorners</item>
+        <item name="backgroundTint">#FFFFFF</item>
+        <item name="paddingBottomSystemWindowInsets">true</item>
+    </style>
+    <style name="SheetCorners">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 </resources>
