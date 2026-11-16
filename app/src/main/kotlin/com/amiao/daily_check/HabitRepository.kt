@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import java.io.File
 
-/** Keeps the Flutter v1 JSON backup format; the legacy file is never modified. */
+/** Reads Flutter v1 and native v2 goals; the legacy preference file is never modified. */
 class HabitRepository(
     private val context: Context,
     fileName: String = "habits-v1.json",

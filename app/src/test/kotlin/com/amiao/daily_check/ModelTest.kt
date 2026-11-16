@@ -24,7 +24,7 @@ class ModelTest {
     }
     @Test fun rejectsBadBackupsBeforeReplacingData() {
         val valid = HabitCodec.encode(listOf(Habit(id = "one", title = "阅读")))
-        listOf(valid.replace("\"version\":1", "\"version\":2"), valid.replace("\"dailyTarget\":1", "\"dailyTarget\":-1"), "{}", "not json").forEach { raw ->
+        listOf(valid.replace("\"version\":2", "\"version\":99"), valid.replace("\"dailyTarget\":1", "\"dailyTarget\":-1"), "{}", "not json").forEach { raw ->
             assertThrows(Exception::class.java) { HabitCodec.decode(raw) }
         }
         assertThrows(Exception::class.java) { HabitCodec.decode(HabitCodec.encode(listOf(Habit(id = "same", title = "a"), Habit(id = "same", title = "b")))) }
@@ -37,4 +37,21 @@ class ModelTest {
         assertFalse(h.done("2026-11-16"))
         assertEquals(0.0, h.total, 0.0)
     }
+    @Test fun textOnlyGoalSurvivesBackupWithoutAnInventedQuantity() {
+        val h = Habit(title = "英语听力学习", unit = "集", dailyTarget = 2.0,
+            goalDescription = "听懂英文播客，学完这门课程！")
+        val restored = HabitCodec.decode(HabitCodec.encode(listOf(h))).single()
+        assertNull(restored.goal)
+        assertEquals(h.goalDescription, restored.goalDescription)
+        assertEquals(h, restored)
+    }
+    @Test fun textAndQuantityTargetsCanBeUsedTogether() {
+        val h = Habit(title = "阅读", unit = "页", goal = 600.5, goalDescription = "读完一本书")
+        assertEquals(h, HabitCodec.decode(HabitCodec.encode(listOf(h))).single())
+    }
+    @Test fun optionalQuantityStillRejectsInvalidValues() {
+        val h = Habit(title = "阅读", goal = -1.0, goalDescription = "读完一本书")
+        assertThrows(Exception::class.java) { HabitCodec.decode(HabitCodec.encode(listOf(h))) }
+    }
+
 }

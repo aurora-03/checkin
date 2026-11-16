@@ -1,6 +1,6 @@
 # 日积 · 原生 Android 打卡应用
 
-Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前版本 **2.1.1**，最低支持 Android 7.0（API 24），编译和目标 SDK 为 36。项目不包含 Dart、Flutter 引擎、WebView 或 Flutter 构建插件。
+Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前版本 **2.2.0**，最低支持 Android 7.0（API 24），编译和目标 SDK 为 36。项目不包含 Dart、Flutter 引擎、WebView 或 Flutter 构建插件。
 
 
 ## 界面预览
@@ -10,6 +10,16 @@ Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前�
 | 今天 | 目标 | 记录 |
 | --- | --- | --- |
 | ![今天](docs/screenshots/today.png) | ![目标](docs/screenshots/goals.png) | ![记录](docs/screenshots/history.png) |
+
+## 2.2 文字目标
+
+“目标”现在是可选文字描述，可以填写中文、英文、数字和标点，例如“学完英语听力课程”。不填写累计数量也能创建习惯、每日打卡和记录。
+
+需要数量百分比时，再展开“设置累计数量（可选）”，填写如 600 页或 100 集。文字目标与数量目标可同时保留；没有数量目标时，目标页展示文字描述和真实累计记录，不虚构达成百分比。
+
+旧习惯的数字目标和历史记录继续保留。新版可以导入 version 1 备份；导出的 version 2 备份包含 `goalDescription`，`goal` 可为空。内部文件路径沿用 `habits-v1.json`，不会因为更换存储路径而丢失旧数据。
+
+验证包括：中文文字目标的真实表单创建（写入隔离测试文件）、重建后草稿恢复、重新读取、备份往返、旧版迁移、可选数字目标与键盘输入。7 项模型测试通过。
 
 ## 2.1.1 输入修复
 
@@ -38,7 +48,7 @@ adb -s <emulator> shell am instrument -w com.amiao.daily_check.test/com.amiao.da
 
 ## 功能
 
-- 自定义任务名称、每日数量、单位、累计目标和颜色。
+- 自定义任务名称、文字目标、每日数量、单位、可选累计数量和颜色。
 - 每日一键打卡，手动编辑实际总量，支持小数和纯文字日记。
 - 日期切换、过去日期补记、月历、历史记录、连续达标天数。
 - 编辑、归档、恢复任务，以及确认后删除任务或清除当天记录。
@@ -66,7 +76,7 @@ APK 输出位置：`app/build/outputs/apk/debug/app-debug.apk`。当前 APK 使�
 
 包名继续使用 `com.amiao.daily_check`。以相同签名覆盖安装时，首次运行会读取 Flutter 版的 `FlutterSharedPreferences` / `flutter.daily_check_v1`，校验后写入原生应用私有文件 `files/habits-v1.json`。旧版偏好文件保留不动；原生文件存在后以原生文件为准，避免旧数据覆盖新记录。迁移失败或本地文件损坏时显示读取错误，支持重试或恢复备份，不会静默清空数据。
 
-备份继续沿用 version 1 JSON 格式。卸载应用或清除数据会删除本地记录，建议手动保管备份。数据用 `AtomicFile` 原子写入；保存失败时不更新界面中的任务状态。
+新版导出 version 2 JSON 格式，并继续兼容导入 version 1 备份。卸载应用或清除数据会删除本地记录，建议手动保管备份。数据用 `AtomicFile` 原子写入；保存失败时不更新界面中的任务状态。
 
 ## 源码结构
 

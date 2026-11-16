@@ -29,7 +29,9 @@ class NativeSmokeInstrumentation : Instrumentation() {
             file.delete(); File(file.path + ".bak").delete()
             val h = Habit(id = "legacy", title = "中文迁移测试", unit = "页", dailyTarget = 20.0, goal = 600.0, archived = true)
             h.entries["2026-11-16"] = DailyEntry(25.25, "原生版本保留旧版文字")
-            val legacy = HabitCodec.encode(listOf(h))
+            val old = org.json.JSONObject(HabitCodec.encode(listOf(h)))
+            old.put("version",1); old.getJSONArray("habits").getJSONObject(0).remove("goalDescription")
+            val legacy = old.toString()
             check(prefs.edit().putString("flutter.daily_check_v1", legacy).commit())
             val repo = HabitRepository(context, name, "migration-smoke-legacy")
             check(repo.load().single() == h)
@@ -41,6 +43,10 @@ class NativeSmokeInstrumentation : Instrumentation() {
             check(HabitRepository(context, name, "migration-smoke-legacy").load().single().entries.size == 2)
             // Native data is authoritative; legacy preferences must never overwrite new entries.
             check(repo.load().single().total == 25.25)
+            val textGoal=h.copy(goal=null,goalDescription="听懂英文播客，学完这门课程！")
+            repo.save(listOf(textGoal))
+            check(repo.load().single()==textGoal)
+            check(repo.load().single().goal==null)
             file.writeText("corrupt")
             check(runCatching { repo.load() }.isFailure)
             check(file.readText() == "corrupt")
@@ -53,7 +59,8 @@ class NativeSmokeInstrumentation : Instrumentation() {
                 descendants(activity.window.decorView).first { it.contentDescription=="新建任务" }.performClick()
                 val editor=dialog(activity)
                 val fields=descendants(editor.window!!.decorView).filterIsInstance<EditText>()
-                check(fields.size==4)
+                check(fields.size==5)
+                fields.first { it.contentDescription=="目标（选填）" }.setText("学完英语听力课程！")
                 fields.first { it.contentDescription=="习惯名称" }.setText("屏幕重建后保留的草稿")
             }
             waitForIdleSync()
@@ -78,17 +85,25 @@ class NativeSmokeInstrumentation : Instrumentation() {
                     val editor=dialog(restored.get())
                     val fields=descendants(editor.window!!.decorView).filterIsInstance<EditText>()
                     check(fields.first { it.contentDescription=="习惯名称" }.text.toString()=="屏幕重建后保留的草稿")
-                    check(descendants(editor.window!!.decorView).filterIsInstance<TextView>().any { it.text.toString()=="创建习惯" })
-                    editor.dismiss()
+                    check(fields.first { it.contentDescription=="目标（选填）" }.text.toString()=="学完英语听力课程！")
+                    val isolatedUiRepo=HabitRepository(context,"ui-text-goal-test.json","ui-text-goal-legacy")
+                    MainActivity::class.java.getDeclaredField("repository").apply { isAccessible=true }.set(restored.get(),isolatedUiRepo)
+                    descendants(editor.window!!.decorView).filterIsInstance<TextView>().first { it.text.toString()=="创建习惯" }.performClick()
+                    check(!editor.isShowing) { "A text-only goal must be creatable without a numeric target" }
+                    val created=isolatedUiRepo.load().first { it.title=="屏幕重建后保留的草稿" }
+                    check(created.goalDescription=="学完英语听力课程！")
+                    check(created.goal==null)
+                    check(HabitRepository(context,"ui-text-goal-test.json","ui-text-goal-legacy").load().contains(created))
                 }
             } finally { app.unregisterActivityLifecycleCallbacks(callback) }
-            result.putString("stream", "PASS: redesigned navigation, bottom-sheet editor, draft restoration, native activity launch, legacy migration, decimals, Chinese notes, archive state, durable reload, legacy preserved, corrupt-data protection\n")
+            result.putString("stream", "PASS: text-only habit creation through real editor, text-only goal persistence, text-goal draft restoration, redesigned navigation, bottom-sheet editor, draft restoration, native activity launch, legacy migration, decimals, Chinese notes, archive state, durable reload, legacy preserved, corrupt-data protection\n")
             finish(Activity.RESULT_OK, result)
         } catch (error: Throwable) {
             result.putString("stream", "FAIL: ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, result)
         } finally {
             file.delete(); File(file.path + ".bak").delete(); File(file.path + ".new").delete(); prefs.edit().clear().commit()
+            listOf("ui-text-goal-test.json","ui-text-goal-test.json.bak","ui-text-goal-test.json.new").forEach { File(context.filesDir,it).delete() }
         }
     }
 }

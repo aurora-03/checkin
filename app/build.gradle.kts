@@ -9,8 +9,8 @@ android {
         applicationId = "com.amiao.daily_check"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.1.1"
+        versionCode = 6
+        versionName = "2.2.0"
         testInstrumentationRunner = providers.gradleProperty("instrumentationRunner").getOrElse("com.amiao.daily_check.NativeSmokeInstrumentation")
     }
     compileOptions {

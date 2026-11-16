@@ -313,9 +313,13 @@ class MainActivity : AppCompatActivity() {
         visible.forEach { h -> card(parent,18) { box ->
             val head=row(); head.addView(habitTile(h,36)); head.addView(text(h.title,16f,bold=true).apply { maxLines=2; ellipsize=TextUtils.TruncateAt.END },LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(10) })
             head.addView(iconButton("more","${h.title}的任务选项") { taskMenu(h) }); box.line(head)
-            val total=row().apply { gravity=Gravity.BOTTOM }; total.addView(text(number(h.total),27f,bold=true)); total.addView(text(" / ${number(h.goal)} ${h.unit}",13f,muted),LinearLayout.LayoutParams(0,-2,1f).apply { bottomMargin=dp(3) }); box.line(total,16)
-            progress(box,h.total/h.goal,colors[h.color])
-            val metrics=row(); metrics.addView(text("连续 ${h.streak(Days.today())} 天",12f,muted),LinearLayout.LayoutParams(0,-2,1f)); metrics.addView(text(if(h.total>=h.goal) "目标达成" else "${(h.total/h.goal*100).toInt()}%",12f,colors[h.color],true)); box.line(metrics,12)
+            if(h.goalDescription.isNotBlank()) box.line(text(h.goalDescription,14f,ink).apply { setLineSpacing(dp(4).toFloat(),1.1f) },12)
+            val target=h.goal
+            val total=row().apply { gravity=Gravity.BOTTOM }; total.addView(text(number(h.total),27f,bold=true)); total.addView(text(if(target==null) " ${h.unit} · 累计" else " / ${number(target)} ${h.unit}",13f,muted),LinearLayout.LayoutParams(0,-2,1f).apply { bottomMargin=dp(3) }); box.line(total,16)
+            if(target!=null) progress(box,h.total/target,colors[h.color])
+            val metrics=row(); metrics.addView(text("连续 ${h.streak(Days.today())} 天",12f,muted),LinearLayout.LayoutParams(0,-2,1f))
+            if(target!=null) metrics.addView(text(if(h.total>=target) "数量达标" else "${(h.total/target*100).toInt()}%",12f,colors[h.color],true))
+            box.line(metrics,12)
             box.addView(HabitGrid(this,h,colors[h.color]).apply { contentDescription="${h.title}最近28天的完成情况" },LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(20) })
             box.line(text("最近 28 天",10f,muted),7)
         } }
@@ -399,11 +403,14 @@ class MainActivity : AppCompatActivity() {
         // leaves the final goal field below the fixed footer on short windows.
         var lastFocus: View?=null
         var lastVisibleHeight=-1
+        var lastInputHeight=-1
+        var lastViewportHeight=-1
         fun revealFocusedInput() {
             val focused=dialog.currentFocus as? EditText ?: return
+            if(!focused.isShown) return
             val visible=Rect(); root.getWindowVisibleDisplayFrame(visible)
-            if(focused===lastFocus && visible.height()==lastVisibleHeight) return
-            lastFocus=focused; lastVisibleHeight=visible.height()
+            if(focused===lastFocus && visible.height()==lastVisibleHeight && focused.height==lastInputHeight && scroll.height==lastViewportHeight) return
+            lastFocus=focused; lastVisibleHeight=visible.height(); lastInputHeight=focused.height; lastViewportHeight=scroll.height
             focused.post {
                 if(dialog.isShowing && focused.hasFocus()) {
                     val context=min(dp(100),maxOf(0,scroll.height-focused.height-dp(8)))
@@ -414,12 +421,11 @@ class MainActivity : AppCompatActivity() {
         fun inputs(view: View): List<EditText> = listOfNotNull(view as? EditText) +
             if(view is ViewGroup) (0 until view.childCount).flatMap { inputs(view.getChildAt(it)) } else emptyList()
         val fields=inputs(content)
-        fields.forEachIndexed { index,edit ->
+        fields.forEach { edit ->
             if(edit.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE==0) {
-                val next=fields.getOrNull(index+1)
-                edit.imeOptions=(if(next==null) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_NEXT) or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-                if(next!=null) { edit.nextFocusForwardId=next.id; edit.nextFocusDownId=next.id }
                 edit.setOnEditorActionListener { _,action,_ ->
+                    val visible=fields.filter { it.isShown }
+                    val next=visible.getOrNull(visible.indexOf(edit)+1)
                     when(action) {
                         EditorInfo.IME_ACTION_NEXT -> { next?.requestFocus(); revealFocusedInput(); true }
                         EditorInfo.IME_ACTION_DONE -> { (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken,0); true }
@@ -428,7 +434,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        val layoutListener=ViewTreeObserver.OnGlobalLayoutListener { revealFocusedInput() }
+        fun updateInputActions() {
+            val visible=fields.filter { it.isShown }
+            visible.forEachIndexed { index,edit ->
+                if(edit.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE==0) {
+                    val next=visible.getOrNull(index+1)
+                    val options=(if(next==null) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_NEXT) or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                    if(edit.imeOptions!=options) {
+                        edit.imeOptions=options
+                        if(edit.hasFocus()) (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(edit)
+                    }
+                    edit.nextFocusForwardId=next?.id ?: View.NO_ID
+                    edit.nextFocusDownId=next?.id ?: View.NO_ID
+                }
+            }
+        }
+        val layoutListener=ViewTreeObserver.OnGlobalLayoutListener { updateInputActions(); revealFocusedInput() }
         val focusListener=ViewTreeObserver.OnGlobalFocusChangeListener { _,_->revealFocusedInput() }
         root.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
         root.viewTreeObserver.addOnGlobalFocusChangeListener(focusListener)
@@ -504,22 +525,35 @@ class MainActivity : AppCompatActivity() {
             picker.addView(outer,LinearLayout.LayoutParams(dp(44),dp(44)).apply { marginEnd=dp(8) })
         }
         refreshColors(); form.line(picker,16)
+        val description=field(form,"目标（选填）",draft?.getString("goalDescription") ?: h?.goalDescription ?: "",max=300,lines=2)
+        form.line(text("例如：学完一门课程，或读完一本书。",11f,muted),8)
         val pair=row(); val left=column(); val right=column()
         val daily=field(left,"每日目标",draft?.getString("daily") ?: number(h?.dailyTarget ?: 1.0),true)
         val unit=field(right,"单位",draft?.getString("unit") ?: h?.unit ?: "次",max=8)
         pair.addView(left,LinearLayout.LayoutParams(0,-2,1f)); pair.addView(right,LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12) }); form.line(pair,4)
-        val goal=field(form,"累计目标",draft?.getString("goal") ?: number(h?.goal ?: 30.0),true)
-        form.line(text("例如：每天阅读 20 页，累计读完 600 页。",11f,muted),8)
+        var quantityEnabled=draft?.getBoolean("quantityEnabled",!draft.getString("goal").isNullOrBlank()) ?: (h?.goal!=null)
+        val quantityBox=column()
+        val goal=field(quantityBox,"累计数量（选填）",draft?.getString("goal") ?: h?.goal?.let { number(it) } ?: "",true)
+        quantityBox.line(text("仅用于数量进度统计，例如累计阅读 600 页。可不填。",11f,muted),8)
+        val toggle=chip(if(quantityEnabled) "取消累计数量" else "＋ 设置累计数量（可选）") {}
+        tap(toggle) {
+            quantityEnabled=!quantityEnabled
+            quantityBox.visibility=if(quantityEnabled) View.VISIBLE else View.GONE
+            toggle.text=if(quantityEnabled) "取消累计数量" else "＋ 设置累计数量（可选）"
+            if(quantityEnabled) goal.requestFocus()
+        }
+        form.line(toggle,10); form.line(quantityBox)
+        quantityBox.visibility=if(quantityEnabled) View.VISIBLE else View.GONE
         if(h!=null) form.line(text("修改单位不会换算历史数量；每日目标会用于判断历史达标情况。",11f,muted),12)
         editor(if(h==null) "新建习惯" else "编辑习惯",form,if(h==null) "创建习惯" else "保存修改") {
             if(title.text.isBlank()) { formError(title,"给这个习惯起个名字吧"); return@editor }
             val dailyValue=validNumber(daily) ?: return@editor
             if(unit.text.isBlank()) { formError(unit,"请输入单位"); return@editor }
-            val goalValue=validNumber(goal) ?: return@editor
-            val updated=Habit(h?.id ?: java.util.UUID.randomUUID().toString(),title.text.toString().trim(),unit.text.toString().trim(),dailyValue,goalValue,color,h?.archived ?: false,h?.entries ?: linkedMapOf())
+            val goalValue=if(quantityEnabled && goal.text.isNotBlank()) validNumber(goal) ?: return@editor else null
+            val updated=Habit(h?.id ?: java.util.UUID.randomUUID().toString(),title.text.toString().trim(),unit.text.toString().trim(),dailyValue,goalValue,color,h?.archived ?: false,h?.entries ?: linkedMapOf(),description.text.toString().trim())
             if(change { list -> val i=list.indexOfFirst { it.id==updated.id }; if(i<0) list.add(updated) else list[i]=updated }) openDialog?.dismiss()
         }
-        editorState={ Bundle().apply { putString("type","habit"); putString("id",h?.id); putString("title",title.text.toString()); putString("daily",daily.text.toString()); putString("unit",unit.text.toString()); putString("goal",goal.text.toString()); putInt("color",color) } }
+        editorState={ Bundle().apply { putString("type","habit"); putString("id",h?.id); putString("title",title.text.toString()); putString("daily",daily.text.toString()); putString("unit",unit.text.toString()); putString("goal",goal.text.toString()); putString("goalDescription",description.text.toString()); putBoolean("quantityEnabled",quantityEnabled); putInt("color",color) } }
     }
     private fun editEntry(h: Habit,date: String = selected,draft: Bundle? = null) {
         val form=column().apply { setPadding(dp(24),0,dp(24),dp(8)) }; val e=h.entries[date]
@@ -545,7 +579,7 @@ class MainActivity : AppCompatActivity() {
             clipboard.setPrimaryClip(ClipData.newPlainText("日积数据备份",HabitCodec.encode(habits))); message("备份已复制，请妥善保存。")
         }
         actionItem(form,"恢复备份","兼容此前版本的 JSON 备份","import") { restore() }
-        val about=column().apply { setPadding(dp(24),dp(24),dp(24),dp(4)); line(text("日积  2.1.1",12f,muted)); line(text("所有记录保存在这台设备上。",11f,muted),6) }; form.line(about)
+        val about=column().apply { setPadding(dp(24),dp(24),dp(24),dp(4)); line(text("日积  2.2.0",12f,muted)); line(text("所有记录保存在这台设备上。",11f,muted),6) }; form.line(about)
         showSheet("设置与数据",form)
     }
     private fun restore(draft: Bundle? = null) {

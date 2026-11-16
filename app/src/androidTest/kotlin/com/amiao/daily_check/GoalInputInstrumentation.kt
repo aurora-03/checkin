@@ -48,7 +48,12 @@ class GoalInputInstrumentation : Instrumentation() {
                 descendants(activity.window.decorView).first { it.contentDescription=="新建任务" }.performClick()
                 editor=MainActivity::class.java.getDeclaredField("openDialog").run { isAccessible=true; get(activity) as Dialog }
                 val fields=descendants(editor.window!!.decorView).filterIsInstance<EditText>()
-                goal=fields.first { it.contentDescription=="累计目标" }
+                val description=fields.first { it.contentDescription=="目标（选填）" }
+                check(description.inputType and android.text.InputType.TYPE_MASK_CLASS==android.text.InputType.TYPE_CLASS_TEXT)
+                description.setText("学完课程，不只是完成 30 次打卡！")
+                check(description.text.toString()=="学完课程，不只是完成 30 次打卡！")
+                descendants(editor.window!!.decorView).filterIsInstance<android.widget.TextView>().first { it.text.toString()=="＋ 设置累计数量（可选）" }.performClick()
+                goal=fields.first { it.contentDescription=="累计数量（选填）" }
                 unit=fields.first { it.contentDescription=="单位" }
                 goal.setText("")
             }
@@ -100,7 +105,7 @@ class GoalInputInstrumentation : Instrumentation() {
                 check(goal.text.toString()=="600.5")
                 editor.dismiss()
             }
-            result.putString("stream","PASS: cumulative goal accepts a real touch and decimal input while IME is visible\n")
+            result.putString("stream","PASS: goal accepts Chinese text; optional cumulative quantity accepts a real touch and decimal input while IME is visible\n")
             finish(Activity.RESULT_OK,result)
         } catch(error: Throwable) {
             result.putString("stream","FAIL: ${error.stackTraceToString()}\n")

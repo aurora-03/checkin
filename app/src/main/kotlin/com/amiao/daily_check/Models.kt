@@ -29,8 +29,9 @@ fun number(value: Double): String = java.math.BigDecimal.valueOf(value).stripTra
 data class DailyEntry(val amount: Double, val note: String)
 data class Habit(
     val id: String = UUID.randomUUID().toString(), val title: String, val unit: String = "次",
-    val dailyTarget: Double = 1.0, val goal: Double = 30.0, val color: Int = 0,
-    val archived: Boolean = false, val entries: MutableMap<String, DailyEntry> = linkedMapOf()
+    val dailyTarget: Double = 1.0, val goal: Double? = null, val color: Int = 0,
+    val archived: Boolean = false, val entries: MutableMap<String, DailyEntry> = linkedMapOf(),
+    val goalDescription: String = ""
 ) {
     val total get() = entries.values.sumOf { it.amount }
     fun done(day: String) = (entries[day]?.amount ?: 0.0) >= dailyTarget
@@ -42,21 +43,24 @@ data class Habit(
     }
 }
 object HabitCodec {
-    fun encode(habits: List<Habit>): String = JSONObject().put("version", 1).put("habits", JSONArray().apply {
+    fun encode(habits: List<Habit>): String = JSONObject().put("version", 2).put("habits", JSONArray().apply {
         habits.forEach { h -> put(JSONObject().put("id", h.id).put("title", h.title).put("unit", h.unit)
-            .put("dailyTarget", h.dailyTarget).put("goal", h.goal).put("color", h.color)
+            .put("dailyTarget", h.dailyTarget).put("goal", h.goal ?: JSONObject.NULL).put("goalDescription", h.goalDescription).put("color", h.color)
             .put("archived", h.archived).put("entries", JSONObject().apply {
                 h.entries.forEach { (date, entry) -> put(date, JSONObject().put("amount", entry.amount).put("note", entry.note)) }
             })) }
     }).toString()
     fun decode(raw: String): MutableList<Habit> {
         val json = JSONObject(raw)
-        require(json.getInt("version") == 1) { "不支持的备份版本" }
+        val version = json.getInt("version")
+        require(version == 1 || version == 2) { "不支持的备份版本" }
         val array = json.getJSONArray("habits")
         val habits = (0 until array.length()).map { index ->
             val h = array.getJSONObject(index)
-            val daily = h.getDouble("dailyTarget"); val goal = h.getDouble("goal")
-            require(daily.isFinite() && daily > 0 && goal.isFinite() && goal > 0)
+            val daily = h.getDouble("dailyTarget")
+            val goal = if (version == 2 && h.isNull("goal")) null else h.getDouble("goal")
+            require(daily.isFinite() && daily > 0 && (goal == null || goal.isFinite() && goal > 0))
+            val description = if (version == 1) "" else h.getString("goalDescription")
             val title = h.getString("title"); val unit = h.getString("unit"); val id = h.getString("id")
             require(title.isNotBlank() && unit.isNotBlank() && id.isNotBlank())
             val entries = linkedMapOf<String, DailyEntry>()
@@ -67,7 +71,7 @@ object HabitCodec {
                 require(amount.isFinite() && amount >= 0)
                 entries[key] = DailyEntry(amount, record.getString("note"))
             }
-            Habit(id, title, unit, daily, goal, h.getInt("color").coerceIn(0, 4), h.getBoolean("archived"), entries)
+            Habit(id, title, unit, daily, goal, h.getInt("color").coerceIn(0, 4), h.getBoolean("archived"), entries, description)
         }
         require(habits.map { it.id }.toSet().size == habits.size) { "重复的任务" }
         return habits.toMutableList()
