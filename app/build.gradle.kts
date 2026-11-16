@@ -9,9 +9,9 @@ android {
         applicationId = "com.amiao.daily_check"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "2.1.0"
-        testInstrumentationRunner = "com.amiao.daily_check.NativeSmokeInstrumentation"
+        versionCode = 5
+        versionName = "2.1.1"
+        testInstrumentationRunner = providers.gradleProperty("instrumentationRunner").getOrElse("com.amiao.daily_check.NativeSmokeInstrumentation")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

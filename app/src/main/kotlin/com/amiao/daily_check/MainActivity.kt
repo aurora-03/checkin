@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Rect
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -20,6 +21,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.ViewTreeObserver
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
@@ -390,13 +394,57 @@ class MainActivity : AppCompatActivity() {
             val footer=column().apply { setPadding(dp(24),dp(12),dp(24),dp(20)) }
             footer.line(primary(saveLabel) { save?.invoke() }); root.line(footer)
         } else gap(root,20)
+        // Keep the focused input and a little following context inside the scroll viewport.
+        // The IME can resize the sheet after focus was granted, so focus-time scrolling alone
+        // leaves the final goal field below the fixed footer on short windows.
+        var lastFocus: View?=null
+        var lastVisibleHeight=-1
+        fun revealFocusedInput() {
+            val focused=dialog.currentFocus as? EditText ?: return
+            val visible=Rect(); root.getWindowVisibleDisplayFrame(visible)
+            if(focused===lastFocus && visible.height()==lastVisibleHeight) return
+            lastFocus=focused; lastVisibleHeight=visible.height()
+            focused.post {
+                if(dialog.isShowing && focused.hasFocus()) {
+                    val context=min(dp(100),maxOf(0,scroll.height-focused.height-dp(8)))
+                    focused.requestRectangleOnScreen(Rect(0,0,focused.width,focused.height+context),true)
+                }
+            }
+        }
+        fun inputs(view: View): List<EditText> = listOfNotNull(view as? EditText) +
+            if(view is ViewGroup) (0 until view.childCount).flatMap { inputs(view.getChildAt(it)) } else emptyList()
+        val fields=inputs(content)
+        fields.forEachIndexed { index,edit ->
+            if(edit.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE==0) {
+                val next=fields.getOrNull(index+1)
+                edit.imeOptions=(if(next==null) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_NEXT) or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+                if(next!=null) { edit.nextFocusForwardId=next.id; edit.nextFocusDownId=next.id }
+                edit.setOnEditorActionListener { _,action,_ ->
+                    when(action) {
+                        EditorInfo.IME_ACTION_NEXT -> { next?.requestFocus(); revealFocusedInput(); true }
+                        EditorInfo.IME_ACTION_DONE -> { (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(edit.windowToken,0); true }
+                        else -> false
+                    }
+                }
+            }
+        }
+        val layoutListener=ViewTreeObserver.OnGlobalLayoutListener { revealFocusedInput() }
+        val focusListener=ViewTreeObserver.OnGlobalFocusChangeListener { _,_->revealFocusedInput() }
+        root.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+        root.viewTreeObserver.addOnGlobalFocusChangeListener(focusListener)
         dialog.setContentView(root)
         dialog.setOnShowListener {
             dialog.behavior.maxHeight=(resources.displayMetrics.heightPixels*.9f).toInt()
             dialog.behavior.skipCollapsed=true; dialog.behavior.state=BottomSheetBehavior.STATE_EXPANDED
             @Suppress("DEPRECATION") dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
-        dialog.setOnDismissListener { if(openDialog===dialog) { openDialog=null; editorState=null } }
+        dialog.setOnDismissListener {
+            if(root.viewTreeObserver.isAlive) {
+                root.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                root.viewTreeObserver.removeOnGlobalFocusChangeListener(focusListener)
+            }
+            if(openDialog===dialog) { openDialog=null; editorState=null }
+        }
         openDialog=dialog; dialog.show(); return dialog
     }
     private fun actionItem(parent: LinearLayout,label: String,detail: String,glyph: String,danger: Boolean = false,action: () -> Unit) {
@@ -497,7 +545,7 @@ class MainActivity : AppCompatActivity() {
             clipboard.setPrimaryClip(ClipData.newPlainText("日积数据备份",HabitCodec.encode(habits))); message("备份已复制，请妥善保存。")
         }
         actionItem(form,"恢复备份","兼容此前版本的 JSON 备份","import") { restore() }
-        val about=column().apply { setPadding(dp(24),dp(24),dp(24),dp(4)); line(text("日积  2.1.0",12f,muted)); line(text("所有记录保存在这台设备上。",11f,muted),6) }; form.line(about)
+        val about=column().apply { setPadding(dp(24),dp(24),dp(24),dp(4)); line(text("日积  2.1.1",12f,muted)); line(text("所有记录保存在这台设备上。",11f,muted),6) }; form.line(about)
         showSheet("设置与数据",form)
     }
     private fun restore(draft: Bundle? = null) {

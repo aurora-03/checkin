@@ -1,6 +1,6 @@
 # 日积 · 原生 Android 打卡应用
 
-Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前版本 **2.1.0**，最低支持 Android 7.0（API 24），编译和目标 SDK 为 36。项目不包含 Dart、Flutter 引擎、WebView 或 Flutter 构建插件。
+Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前版本 **2.1.1**，最低支持 Android 7.0（API 24），编译和目标 SDK 为 36。项目不包含 Dart、Flutter 引擎、WebView 或 Flutter 构建插件。
 
 
 ## 界面预览
@@ -10,6 +10,21 @@ Kotlin + Android 原生 Views、AppCompat 与 Material 3 组件实现。当前�
 | 今天 | 目标 | 记录 |
 | --- | --- | --- |
 | ![今天](docs/screenshots/today.png) | ![目标](docs/screenshots/goals.png) | ![记录](docs/screenshots/history.png) |
+
+## 2.1.1 输入修复
+
+修复新建／编辑习惯时，键盘展开后累计目标输入区落在固定按钮栏之外的问题。底部面板会在焦点或键盘可用高度变化后重新显示输入框，并保留下一项的操作空间；单行字段明确连接键盘“下一项”，最后一项支持“完成”收起键盘。
+
+新增真实触摸与软键盘回归测试：先编辑单位，保持键盘展开，点击累计目标并输入 `600.5`，同时校验“下一项”的焦点路由。旧版在 360×640dp、1.15 倍字体场景连续失败，修复后通过，并在 320×640dp、1.3 倍字体及 Android 15 真机验证。测试仅使用未提交表单，不写入习惯数据。
+
+在专用 API 30+ 模拟器上运行：
+
+```sh
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -PinstrumentationRunner=com.amiao.daily_check.GoalInputInstrumentation
+adb -s <emulator> install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s <emulator> install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s <emulator> shell am instrument -w com.amiao.daily_check.test/com.amiao.daily_check.GoalInputInstrumentation
+```
 
 ## 2.1 界面设计
 
